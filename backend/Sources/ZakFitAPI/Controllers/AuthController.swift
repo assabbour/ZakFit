@@ -15,6 +15,12 @@ struct AuthController: RouteCollection {
         let password: String
     }
 
+    private struct Profile: Content {
+        let id: UUID
+        let nom: String
+        let email: String
+    }
+
     private struct AccessToken: JWTPayload {
         let subject: SubjectClaim
         let expiration: ExpirationClaim
@@ -33,6 +39,7 @@ struct AuthController: RouteCollection {
         let auth = routes.grouped("auth")
         auth.post("register", use: register)
         auth.post("login", use: login)
+        auth.get("me", use: me)
     }
 
     private func register(_ req: Request) async throws -> HTTPStatus {
@@ -111,5 +118,22 @@ struct AuthController: RouteCollection {
 
         let token = try await req.jwt.sign(payload)
         return ["token": token]
+    }
+
+    private func me(_ req: Request) async throws -> Profile {
+        let token: AccessToken
+
+        do {
+            token = try await req.jwt.verify(as: AccessToken.self)
+        } catch {
+            throw Abort(.unauthorized, reason: "Jeton absent, invalide ou expiré.")
+        }
+
+        guard let userID = UUID(uuidString: token.subject.value),
+              let user = try await User.find(userID, on: req.db) else {
+            throw Abort(.unauthorized, reason: "Compte introuvable.")
+        }
+
+        return Profile(id: userID, nom: user.nom, email: user.email)
     }
 }
