@@ -120,7 +120,7 @@ struct AuthController: RouteCollection {
         return ["token": token]
     }
 
-    private func me(_ req: Request) async throws -> Profile {
+    static func authenticatedUserID(_ req: Request) async throws -> UUID {
         let token: AccessToken
 
         do {
@@ -129,8 +129,17 @@ struct AuthController: RouteCollection {
             throw Abort(.unauthorized, reason: "Jeton absent, invalide ou expiré.")
         }
 
-        guard let userID = UUID(uuidString: token.subject.value),
-              let user = try await User.find(userID, on: req.db) else {
+        guard let userID = UUID(uuidString: token.subject.value) else {
+            throw Abort(.unauthorized, reason: "Identifiant de compte invalide.")
+        }
+
+        return userID
+    }
+
+    private func me(_ req: Request) async throws -> Profile {
+        let userID = try await Self.authenticatedUserID(req)
+
+        guard let user = try await User.find(userID, on: req.db) else {
             throw Abort(.unauthorized, reason: "Compte introuvable.")
         }
 
