@@ -20,8 +20,16 @@ struct ActivityController: RouteCollection {
 
     private func index(_ req: Request) async throws -> [ActivityResponse] {
         let userID = try await AuthController.authenticatedUserID(req)
-        let activities = try await Activity.query(on: req.db)
+        let query = Activity.query(on: req.db)
             .filter(\.$user.$id == userID)
+
+        if let day = try await HistoryDateFilter.day(for: req, userID: userID) {
+            query
+                .filter(\.$performedAt >= day.start)
+                .filter(\.$performedAt < day.end)
+        }
+
+        let activities = try await query
             .sort(\.$performedAt, .descending)
             .all()
 

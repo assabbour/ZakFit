@@ -19,8 +19,16 @@ struct MealController: RouteCollection {
 
     private func index(_ req: Request) async throws -> [MealResponse] {
         let userID = try await AuthController.authenticatedUserID(req)
-        let meals = try await Meal.query(on: req.db)
+        let query = Meal.query(on: req.db)
             .filter(\.$user.$id == userID)
+
+        if let day = try await HistoryDateFilter.day(for: req, userID: userID) {
+            query
+                .filter(\.$consumedAt >= day.start)
+                .filter(\.$consumedAt < day.end)
+        }
+
+        let meals = try await query
             .sort(\.$consumedAt, .descending)
             .all()
 
