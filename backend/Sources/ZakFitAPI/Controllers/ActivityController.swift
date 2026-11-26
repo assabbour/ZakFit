@@ -15,6 +15,7 @@ struct ActivityController: RouteCollection {
         routes.get("activities", use: index)
         routes.post("activities", use: create)
         routes.put("activities", ":id", use: update)
+        routes.delete("activities", ":id", use: delete)
     }
 
     private func index(_ req: Request) async throws -> [ActivityResponse] {
@@ -82,6 +83,12 @@ struct ActivityController: RouteCollection {
             caloriesBurned: activity.caloriesBurned,
             performedAt: activity.performedAt
         )
+    }
+
+    private func delete(_ req: Request) async throws -> HTTPStatus {
+        let activity = try await ownedActivity(req)
+        try await activity.delete(on: req.db)
+        return .noContent
     }
 
     private func ownedActivity(_ req: Request) async throws -> Activity {
