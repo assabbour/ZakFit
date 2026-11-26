@@ -12,6 +12,7 @@ struct DashboardController: RouteCollection {
     func boot(routes: any RoutesBuilder) throws {
         routes.get("dashboard", use: show)
         routes.get("dashboard", "weekly", use: weekly)
+        routes.get("dashboard", "progress", use: progress)
     }
 
     private struct DailyPoint: Content {
@@ -28,6 +29,48 @@ struct DashboardController: RouteCollection {
         }
 
         return try await totals(for: day, userID: userID, sql: sql)
+    }
+
+    private struct GoalProgress: Content {
+        let id: UUID
+        let type: String
+        let currentValue: Int
+        let targetValue: Int
+        let percentage: Double
+    }
+
+    private func progress(_ req: Request) async throws -> [GoalProgress] {
+        let (userID, calendar, sql) = try await dashboardContext(req)
+
+        guard let day = calendar.dateInterval(of: .day, for: Date()) else {
+            throw Abort(.internalServerError)
+        }
+
+        let daily = try await totals(for: day, userID: userID, sql: sql)
+        let goals = try await Goal.query(on: req.db)
+            .filter(\.$user.$id == userID)
+            .sort(\.$type, .ascending)
+            .all()
+
+        return try goals.map { goal in
+            let currentValue: Int
+            switch goal.type {
+            case "calories_consumed":
+                currentValue = daily.caloriesConsumed
+            case "activity_minutes":
+                currentValue = daily.activityMinutes
+            default:
+                throw Abort(.internalServerError, reason: "Type d’objectif inconnu.")
+            }
+
+            return GoalProgress(
+                id: try goal.requireID(),
+                type: goal.type,
+                currentValue: currentValue,
+                targetValue: goal.targetValue,
+                percentage: Double(currentValue) / Double(goal.targetValue) * 100
+            )
+        }
     }
 
     private func weekly(_ req: Request) async throws -> [DailyPoint] {
