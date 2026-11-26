@@ -40,3 +40,45 @@ psql -h localhost -p 5432 -d zakfit -c 'SELECT nom, calories FROM meals ORDER BY
 Les deux repas de Camille totalisent 1 050 kcal. Le compte Camille sert
 aux vérifications SQL. Le compte de démonstration pour SwiftUI sera créé
 à la demande par une commande Vapor.
+
+## Démarrer l’API Vapor
+
+Prérequis sur Mac : Swift 6.3 ou supérieur et PostgreSQL 16 en cours
+d’exécution. Sur un clone neuf, créer la base `zakfit` et appliquer
+`database/schema.sql` en suivant la section « Tester la base de données
+en local ». Le chargement de `database/seed.sql` est facultatif.
+
+Depuis la racine du dépôt, configurer les variables dans le Terminal :
+
+```bash
+export DATABASE_HOST=localhost
+export DATABASE_PORT=5432
+export DATABASE_NAME=zakfit
+printf 'Rôle PostgreSQL : '
+read -r DATABASE_USERNAME
+printf 'Mot de passe PostgreSQL (Entrée si aucun) : '
+read -rs DATABASE_PASSWORD
+printf '\n'
+export DATABASE_USERNAME DATABASE_PASSWORD
+export JWT_SECRET="$(openssl rand -hex 32)"
+
+cd backend
+swift run
+```
+
+Saisir le rôle PostgreSQL utilisé pour créer la base et ses tables.
+Conserver le même onglet pour redémarrer l’API avec la même clé JWT.
+Une nouvelle clé invalide les jetons signés avec la précédente.
+
+Attendre le message `Server started`, puis vérifier l’API et la connexion
+à PostgreSQL depuis un deuxième onglet :
+
+```bash
+curl -fsS http://127.0.0.1:8080/health/database
+```
+
+Résultat attendu : `OK`.
+
+Pour un client web, définir `CORS_ALLOWED_ORIGINS` avant `swift run`, par
+exemple `export CORS_ALLOWED_ORIGINS=http://localhost:3000`. Séparer les
+origines par des virgules si plusieurs doivent être autorisées.
