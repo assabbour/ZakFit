@@ -11,9 +11,56 @@ struct DashboardController: RouteCollection {
 
     func boot(routes: any RoutesBuilder) throws {
         routes.get("dashboard", use: show)
+        routes.get("dashboard", "weekly", use: weekly)
+    }
+
+    private struct DailyPoint: Content {
+        let date: String
+        let caloriesConsumed: Int
+        let activityMinutes: Int
     }
 
     private func show(_ req: Request) async throws -> DailyTotals {
+        let (userID, calendar, sql) = try await dashboardContext(req)
+
+        guard let day = calendar.dateInterval(of: .day, for: Date()) else {
+            throw Abort(.internalServerError)
+        }
+
+        return try await totals(for: day, userID: userID, sql: sql)
+    }
+
+    private func weekly(_ req: Request) async throws -> [DailyPoint] {
+        let (userID, calendar, sql) = try await dashboardContext(req)
+        let today = calendar.startOfDay(for: Date())
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        var points: [DailyPoint] = []
+        for offset in -6...0 {
+            guard let date = calendar.date(byAdding: .day, value: offset, to: today),
+                  let day = calendar.dateInterval(of: .day, for: date) else {
+                throw Abort(.internalServerError)
+            }
+
+            let daily = try await totals(for: day, userID: userID, sql: sql)
+            points.append(DailyPoint(
+                date: formatter.string(from: day.start),
+                caloriesConsumed: daily.caloriesConsumed,
+                activityMinutes: daily.activityMinutes
+            ))
+        }
+
+        return points
+    }
+
+    private func dashboardContext(
+        _ req: Request
+    ) async throws -> (UUID, Calendar, any SQLDatabase) {
         let userID = try await AuthController.authenticatedUserID(req)
 
         guard let settings = try await UserSettings.find(userID, on: req.db) else {
@@ -28,10 +75,14 @@ struct DashboardController: RouteCollection {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timezone
 
-        guard let day = calendar.dateInterval(of: .day, for: Date()) else {
-            throw Abort(.internalServerError)
-        }
+        return (userID, calendar, sql)
+    }
 
+    private func totals(
+        for day: DateInterval,
+        userID: UUID,
+        sql: any SQLDatabase
+    ) async throws -> DailyTotals {
         let totals = try await sql.raw("""
             SELECT
                 COALESCE((
