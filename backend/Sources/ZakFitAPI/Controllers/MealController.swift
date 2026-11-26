@@ -14,6 +14,7 @@ struct MealController: RouteCollection {
         routes.get("meals", use: index)
         routes.post("meals", use: create)
         routes.put("meals", ":id", use: update)
+        routes.delete("meals", ":id", use: delete)
     }
 
     private func index(_ req: Request) async throws -> [MealResponse] {
@@ -62,19 +63,7 @@ struct MealController: RouteCollection {
     }
 
     private func update(_ req: Request) async throws -> MealResponse {
-        let userID = try await AuthController.authenticatedUserID(req)
-
-        guard let rawID = req.parameters.get("id"),
-              let mealID = UUID(uuidString: rawID) else {
-            throw Abort(.badRequest, reason: "Identifiant du repas invalide.")
-        }
-
-        guard let meal = try await Meal.query(on: req.db)
-            .filter(\.$id == mealID)
-            .filter(\.$user.$id == userID)
-            .first() else {
-            throw Abort(.notFound, reason: "Repas introuvable.")
-        }
+        let meal = try await ownedMeal(req)
 
         let input = try req.content.decode(MealRequest.self)
         meal.nom = try validatedName(for: input)
@@ -83,7 +72,7 @@ struct MealController: RouteCollection {
         try await meal.update(on: req.db)
 
         return MealResponse(
-            id: mealID,
+            id: try meal.requireID(),
             nom: meal.nom,
             calories: meal.calories,
             consumedAt: meal.consumedAt
@@ -101,5 +90,29 @@ struct MealController: RouteCollection {
             throw Abort(.badRequest, reason: "Le nombre de calories est invalide.")
         }
         return nom
+    }
+
+    private func delete(_ req: Request) async throws -> HTTPStatus {
+        let meal = try await ownedMeal(req)
+        try await meal.delete(on: req.db)
+        return .noContent
+    }
+
+    private func ownedMeal(_ req: Request) async throws -> Meal {
+        let userID = try await AuthController.authenticatedUserID(req)
+
+        guard let rawID = req.parameters.get("id"),
+              let mealID = UUID(uuidString: rawID) else {
+            throw Abort(.badRequest, reason: "Identifiant du repas invalide.")
+        }
+
+        guard let meal = try await Meal.query(on: req.db)
+            .filter(\.$id == mealID)
+            .filter(\.$user.$id == userID)
+            .first() else {
+            throw Abort(.notFound, reason: "Repas introuvable.")
+        }
+
+        return meal
     }
 }
