@@ -68,7 +68,7 @@ struct DashboardController: RouteCollection {
                 type: goal.type,
                 currentValue: currentValue,
                 targetValue: goal.targetValue,
-                percentage: Double(currentValue) / Double(goal.targetValue) * 100
+                percentage: dashboardProgressPercentage(current: currentValue, target: goal.targetValue)
             )
         }
     }
@@ -150,4 +150,8 @@ struct DashboardController: RouteCollection {
 
         return totals
     }
+}
+
+func dashboardProgressPercentage(current: Int, target: Int) -> Double {
+    Double(current) / Double(target) * 100
 }

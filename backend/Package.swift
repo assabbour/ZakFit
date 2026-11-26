@@ -25,6 +25,10 @@ let package = Package(
                 .product(name: "NIOPosix", package: "swift-nio"),
             ],
             swiftSettings: swiftSettings
+        ),
+        .testTarget(
+            name: "ZakFitAPITests",
+            dependencies: ["ZakFitAPI"]
         )
     ]
 )
