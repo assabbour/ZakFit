@@ -13,6 +13,7 @@ struct GoalController: RouteCollection {
         routes.get("goals", use: index)
         routes.post("goals", use: create)
         routes.put("goals", ":id", use: update)
+        routes.delete("goals", ":id", use: delete)
     }
 
     private func index(_ req: Request) async throws -> [GoalResponse] {
@@ -71,6 +72,12 @@ struct GoalController: RouteCollection {
             type: goal.type,
             targetValue: goal.targetValue
         )
+    }
+
+    private func delete(_ req: Request) async throws -> HTTPStatus {
+        let goal = try await ownedGoal(req)
+        try await goal.delete(on: req.db)
+        return .noContent
     }
 
     private func ownedGoal(_ req: Request) async throws -> Goal {
